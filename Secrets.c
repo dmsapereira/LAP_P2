@@ -164,34 +164,37 @@ void pi_decrypt(String encrypted_filename, String pi_filename,
 	}
 }
 
-Byte pack_tool8(Byte[8] bl, Byte[7] result,int iteration){
+Byte pack_tool8(Byte bl[8], Byte result[7], int iteration){
 	Byte b,c;
-	if(iteration == 6)){
+	if(iteration == 6){
 		b=bl[6] & 0x1;
 		c=shiftl(bl[7],0);
-		for(int i = 0; i< 7; i++)
-			shiftl(b,shiftl(c,0));
+		for(int i = 0; i< 7; i++){
+			b=shiftl(b,msb(c));
+			c=shiftl(c,0);
+		}
 	}else{
 		b=bl[iteration];
-		b=shiftl(b,msb(pack_tool8(bl,result,iteration++)));
-		//canonical desta merda result[iteration]=b;
+		b=shiftl(b,msb(pack_tool8(bl,result,iteration+1)));
+		result[iteration] = b;
 	}
 	return b;
 }
 
-Byte pack_tool_end(int size, Byte[size] bl, Byte[size] result, int iteration){
+Byte pack_tool_end(int size, Byte bl[size], Byte result[size], int iteration){
 	Byte b;
 	if(iteration == size){
+		printf("Iteration on size %d\n", size);
 		b=bl[iteration];
-		for (int i = 0; i < iteration)
+		for (int i = 0; i < iteration; i++)
 			b=shiftl(b,0);
-		return b;
 	}else{
+		printf("iteration %d\n",iteration);
 		b=bl[iteration];
-		b=shiftl(b,msb(pack_tool_end(bl,result,iteration++)));
-		//canonical desta merda result[iteration]=b;
-		return b;
+		b=shiftl(b,msb(pack_tool_end(size,bl,result,iteration+1)));
+		result[iteration]=b;
 	}
+	return b;
 }
 
 void pack_encrypt(String input_filename, String encrypted_filename)
@@ -205,8 +208,12 @@ void pack_encrypt(String input_filename, String encrypted_filename)
 	if(i != NULL && o != NULL){
 		while((count=fread(buffer,sizeof(char),8,i)) == 8){
 			pack_tool8(buffer,result,0);
-			fwrite(result,sizeof(char),7,o)
+			fwrite(result,sizeof(char),7,o);
 		}
+	pack_tool_end(count,buffer,result,0);
+	fwrite(result,sizeof(char),count,o);
+	fclose(i);
+	fclose(o);
 	}
 }
 
@@ -233,7 +240,7 @@ Int2 crude_hide(Image img, Int2 n,
 	Int2 i;
 	f=fopen(message_filename,"rb");
 	if(f == NULL)
-		return NULL;
+		return n;
 	int b=fgetc(f);
 	for(i.y = 0 ; i.y < n.y; i.y++)
 		for(i.x = 0 ; i.x < n.x; i.x++){
@@ -262,7 +269,7 @@ Int2 crude_hide(Image img, Int2 n,
 		}
 	}
 	if(b != EOF)
-		Error("Didn't fit\n");
+		error("Didn't fit\n","Didn't fit\n");
 	return n;
 }
 
@@ -271,14 +278,13 @@ void crude_reveal(Image img, Int2 n, String decoded_filename)
 	FILE *f;
 	Int2 i;
 	char b;
-	if ((f=fopen(decoded_filename,"wb")) == NULL)
-		return NULL;
-	b=img[0][0];
-	for(i.y = 0 ; i.y < n.y && b!=0x0; i.y++)
-		for(i.x = 0 ; i.x < n.x && b!=0x0; i.x++){
-			fputc(b,f);
-			b=img[i.x][i.y].green;
-		}
+	if ((f=fopen(decoded_filename,"wb")) != NULL){
+		b=img[0][0].green;
+		for(i.y = 0 ; i.y < n.y && b!=0x0; i.y++)
+			for(i.x = 0 ; i.x < n.x && b!=0x0; i.x++){
+				fputc(b,f);
+				b=img[i.x][i.y].green;
+			}
 	}
 }
 
