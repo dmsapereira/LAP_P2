@@ -25,15 +25,83 @@ Comment:
 #define BUFFER_SIZE 1024
 // most significant bit
 #define msb(byte)               ( ((signed char)(byte)) < 0 ? 1 : 0 )
+
+//least significant bit
+#define lsb(byte)				( ((signed char)(byte)) & 0x1)
+
 // shift left and insert a new least significant bit
 #define shiftl(byte, newbit)    ( (byte) * 2 + (newbit) )
+
+//shift right and insert a new most significant bit
+#define shiftr(byte, newbit)	( (byte) / 2 + 128 * (newbit))
+
 typedef unsigned char Byte;
 
 /* FUNCTIONS String */
-
+int fpeek(FILE *f)
+{
+    int c;
+    if( (c = fgetc(f)) != EOF )
+        ungetc(c, f); 
+	return c;
+}
 
 /* FUNCTIONS Byte */
+void encrypt_tool(Byte *bl, Byte *result, int *carries, int iteration){
+	Byte b = bl[iteration], c;
+	if(iteration == 6){
+		c = shiftl(bl[7],0);
+		for(int i = 0; i <= iteration; i++){
+			b=shiftl(b,msb(c));
+			c=shiftl(c,0);
+			carries[i] = msb(b);
+		}
+	}else{
+		encrypt_tool(bl, result, carries, iteration + 1);
+		for(int i = 0; i <= iteration; i++){
+			b=shiftl(b, carries[i]);
+			carries[i] = msb(b);
+		}
+	}
+	result[iteration] = b;
+}
 
+void encrypt_tool_end(int size, Byte *bl, Byte *result, 
+						int *carries, int iteration){
+	Byte b = bl[iteration];
+	if(iteration == size)
+		for (int i = 0; i <= iteration; i++){
+			b = shiftl(b,0);
+			carries[i] = msb(b);
+		}
+	else{
+		encrypt_tool_end(size, bl, result, carries, iteration +1);
+		for(int i = 0; i <= iteration; i++){
+			b = shiftl(b, carries[i]);
+			carries[i] = msb(b);
+		}
+	}
+	result[iteration] = b;
+}
+
+void decrypt_tool(int size, Byte *bl, Byte *result, int *carries, int iteration){
+	Byte b = bl[iteration];
+	int c;
+	if(iteration == 0){
+		carries[iteration] = lsb(b);
+		result[iteration] = shiftr(b,0);
+	}else{
+		decrypt_tool(size, bl, result, carries, iteration - 1);
+		for(int i = 0; i < iteration; i++){
+			c = lsb(b);
+			b = shiftr(b, carries[i]);
+			carries[i] = c;
+		}
+		carries[iteration] = lsb(b);
+		b=shiftr(b,0);
+		result[iteration] = b;
+	}
+}
 
 /* FUNCTIONS Int2 */
 
@@ -164,61 +232,47 @@ void pi_decrypt(String encrypted_filename, String pi_filename,
 	}
 }
 
-Byte pack_tool8(Byte bl[8], Byte result[7], int iteration){
-	Byte b,c;
-	if(iteration == 6){
-		b=bl[6] & 0x1;
-		c=shiftl(bl[7],0);
-		for(int i = 0; i< 7; i++){
-			b=shiftl(b,msb(c));
-			c=shiftl(c,0);
-		}
-	}else{
-		b=bl[iteration];
-		b=shiftl(b,msb(pack_tool8(bl,result,iteration+1)));
-		result[iteration] = b;
-	}
-	return b;
-}
-
-Byte pack_tool_end(int size, Byte bl[size], Byte result[size], int iteration){
-	Byte b;
-	if(iteration == size){
-		printf("Iteration on size %d\n", size);
-		b=bl[iteration];
-		for (int i = 0; i < iteration; i++)
-			b=shiftl(b,0);
-	}else{
-		printf("iteration %d\n",iteration);
-		b=bl[iteration];
-		b=shiftl(b,msb(pack_tool_end(size,bl,result,iteration+1)));
-		result[iteration]=b;
-	}
-	return b;
-}
 
 void pack_encrypt(String input_filename, String encrypted_filename)
 {
 	FILE *i, *o;
-	int b,count;
-	char buffer[BUFFER_SIZE];
-	char result[7];
+	int count;
+	char buffer[8], result[7];
+	int carries[7];
 	i=fopen(input_filename,"rb");
 	o=fopen(encrypted_filename,"wb");
 	if(i != NULL && o != NULL){
 		while((count=fread(buffer,sizeof(char),8,i)) == 8){
-			pack_tool8(buffer,result,0);
+			encrypt_tool(buffer,result, carries, 0);
 			fwrite(result,sizeof(char),7,o);
 		}
-	pack_tool_end(count,buffer,result,0);
+	encrypt_tool_end(count,buffer,result, carries, 0);
 	fwrite(result,sizeof(char),count,o);
 	fclose(i);
 	fclose(o);
 	}
 }
 
+
+
 void pack_decrypt(String encrypted_filename, String decrypted_filename)
 {
+	FILE *i, *o;
+	int count;
+	char buffer[7], result[8];
+	int carries[7];
+	i=fopen(encrypted_filename,"rb");
+	o=fopen(decrypted_filename,"wb");
+	if( i != NULL && o != NULL){
+		while((count = fread(buffer,sizeof(char),7,i)) == 7){
+			decrypt_tool(7, buffer, result, carries, 7);
+			fwrite(result, sizeof(char), 8, o);
+		}
+		decrypt_tool(7, buffer, result, carries, count);
+		fwrite(result, sizeof(char), count, o);
+	}
+	fclose(i);
+	fclose(o);
 }
 
 
@@ -227,6 +281,51 @@ void pack_decrypt(String encrypted_filename, String decrypted_filename)
 void dots_hide(String input_filename,
 				String message_filename, String disguised_filename)
 {
+	FILE *i, *m, *o;
+	int b, s, count;
+	bool lastByte = false;
+	i=fopen(input_filename, "rb");
+	m=fopen(message_filename, "rb");
+	o=fopen(disguised_filename, "wb");
+	if( i != NULL && m != NULL && o != NULL){
+		s=fgetc(m);
+		count=0;
+		while((b=fgetc(i)) != EOF){
+			//if it finds a full stop and the secret message is not over
+			if(b == '.' && fpeek(i) == ' ' && s != EOF){
+				fputc(b,o);
+				fgetc(i);
+				//if the current secret char's 8th bit is 1
+				printf("%d\n", msb(s));
+				if(msb(s) != 0)
+					fputc(' ',o);
+				s=shiftl(s,0);
+				count++;
+				//if the current secret char's bits have all been written
+				if(count == 8){
+					s=fgetc(m);
+					count=0;
+					//If EOF is found, we need to write the 0 byte
+					if(s == EOF && !lastByte){
+						lastByte = true;
+						s=0x0;
+					}
+
+				}
+				fputc(' ',o);
+				//Eliminates all the next space chars
+				while(fpeek(i) == ' ')
+					fgetc(i);
+			//If it's not a full stop
+			}else
+				fputc(b,o);
+		}
+		fclose(i);
+		fclose(m);
+		fclose(o);
+		if ( s != EOF)
+			error("Didn't fit\n", "Didn't fit\n");
+	}
 }
 
 void dots_reveal(String disguised_filename, String decoded_filename)
@@ -244,30 +343,27 @@ Int2 crude_hide(Image img, Int2 n,
 	int b=fgetc(f);
 	for(i.y = 0 ; i.y < n.y; i.y++)
 		for(i.x = 0 ; i.x < n.x; i.x++){
+			if(b == EOF)
+				b=img[i.x][i.y].green;
+			result[i.x][i.y].green=b;
+			result[i.x][i.y].red=img[i.x][i.y].red;
+			result[i.x][i.y].blue=img[i.x][i.y].blue;
+			b=fgetc(f);
 			if(b == EOF){
-				result[i.x][i.y].green=img[i.x][i.y].green;
-				result[i.x][i.y].red=img[i.x][i.y].red;
-				result[i.x][i.y].blue=img[i.x][i.y].blue;
-			}else{
-				result[i.x][i.y].green=b;
-				result[i.x][i.y].red=img[i.x][i.y].red;
-				result[i.x][i.y].blue=img[i.x][i.y].blue;
-				b=fgetc(f);
-				if(b == EOF){
-					if(i.x+1 == n.x){
-						i.y++;
-						result[0][i.y].green=0x0;
-						result[0][i.y].blue=img[0][i.y].blue;
-						result[0][i.y].red=img[0][i.y].red;
-					}else{
-						i.x++;
-						result[i.x][i.y].green=0x0;
-						result[i.x][i.y].blue=img[0][i.y].blue;
-						result[i.x][i.y].red=img[0][i.y].red;
-				}
+				if(i.x+1 == n.x){
+					i.y++;
+					result[0][i.y].green=0x0;
+					result[0][i.y].blue=img[0][i.y].blue;
+					result[0][i.y].red=img[0][i.y].red;
+				}else{
+					i.x++;
+					result[i.x][i.y].green=0x0;
+					result[i.x][i.y].blue=img[0][i.y].blue;
+					result[i.x][i.y].red=img[0][i.y].red;
 			}
 		}
 	}
+	fclose(f);
 	if(b != EOF)
 		error("Didn't fit\n","Didn't fit\n");
 	return n;
@@ -278,13 +374,17 @@ void crude_reveal(Image img, Int2 n, String decoded_filename)
 	FILE *f;
 	Int2 i;
 	char b;
+	bool done=false;
 	if ((f=fopen(decoded_filename,"wb")) != NULL){
-		b=img[0][0].green;
-		for(i.y = 0 ; i.y < n.y && b!=0x0; i.y++)
-			for(i.x = 0 ; i.x < n.x && b!=0x0; i.x++){
-				fputc(b,f);
+		for(i.y = 0 ; i.y < n.y && !done; i.y++)
+			for(i.x = 0 ; i.x < n.x && !done; i.x++){
 				b=img[i.x][i.y].green;
+				if(b != 0x0)
+					fputc(b,f);
+				else
+					done=true;
 			}
+		fclose(f);
 	}
 }
 
