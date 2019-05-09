@@ -7,17 +7,9 @@ LAP - AMD 2019
 secrets.c
 
 ------
-Student 1: ????? mandatory to fill
-Student 2: ????? mandatory to fill
+Student 1: 52890 - David Pereira
+Student 2: 53675 - Pedro Bailao
 
-Comment:
-
-?????????????????????????
-?????????????????????????
-?????????????????????????
-?????????????????????????
-?????????????????????????
-?????????????????????????
 
 */
 
@@ -92,24 +84,6 @@ void encrypt_tool(Byte *bl, Byte *result){
 			}
 		result[iteration] = b;
 	}
-	/*
-	Byte b = bl[iteration], c;
-	if(iteration == 6){
-		c = shiftl(bl[7],0);
-		for(int i = 0; i <= iteration; i++){
-			b=shiftl(b,msb(c));
-			c=shiftl(c,0);
-			carries[i] = msb(b);
-		}
-	}else{
-		encrypt_tool(bl, result, carries, iteration + 1);
-		for(int i = 0; i <= iteration; i++){
-			b=shiftl(b, carries[i]);
-			carries[i] = msb(b);
-		}
-	}
-	result[iteration] = b;
-	*/
 }
 
 void encrypt_tool_end(int size, Byte *bl, Byte *result){
@@ -129,22 +103,6 @@ void encrypt_tool_end(int size, Byte *bl, Byte *result){
 			}
 		result[iteration] = b;
 	}
-	/*
-	Byte b = bl[iteration];
-	if(iteration == size)
-		for (int i = 0; i <= iteration; i++){
-			b = shiftl(b,0);
-			carries[i] = msb(b);
-		}
-	else{
-		encrypt_tool_end(size, bl, result, carries, iteration +1);
-		for(int i = 0; i <= iteration; i++){
-			b = shiftl(b, carries[i]);
-			carries[i] = msb(b);
-		}
-	}
-	result[iteration] = b;
-	*/
 }
 
 void decrypt_tool(int size, Byte *bl, Byte *result){
@@ -164,25 +122,6 @@ void decrypt_tool(int size, Byte *bl, Byte *result){
 		b=shiftr(b, 0);
 		result[iteration] = b;
 	}
-
-	/*
-	Byte b = bl[iteration];
-	int c;
-	if(iteration == 0){
-		carries[iteration] = lsb(b);
-		result[iteration] = shiftr(b,0);
-	}else{
-		decrypt_tool(size, bl, result, carries, iteration - 1);
-		for(int i = 0; i < iteration; i++){
-			c = lsb(b);
-			b = shiftr(b, carries[i]);
-			carries[i] = c;
-		}
-		carries[iteration] = lsb(b);
-		b=shiftr(b,0);
-		result[iteration] = b;
-	}
-	*/
 }
 
 /* FUNCTIONS Int2 */
@@ -299,7 +238,7 @@ void pack_encrypt(String input_filename, String encrypted_filename)
 {
 	FILE *i, *o;
 	int count;
-	char buffer[8], result[7];
+	Byte buffer[8], result[7];
 	i=fopen(input_filename,"rb");
 	o=fopen(encrypted_filename,"wb");
 	if(i != NULL && o != NULL){
@@ -314,14 +253,11 @@ void pack_encrypt(String input_filename, String encrypted_filename)
 	fclose(o);
 }
 
-
-
 void pack_decrypt(String encrypted_filename, String decrypted_filename)
 {
 	FILE *i, *o;
 	int count;
-	char buffer[7], result[8];
-	int carries[7];
+	Byte buffer[7], result[8];
 	i=fopen(encrypted_filename,"rb");
 	o=fopen(decrypted_filename,"wb");
 	if( i != NULL && o != NULL){
@@ -353,7 +289,7 @@ void dots_hide(String input_filename,
 		count=0;
 		while((b=fgetc(i)) != EOF){
 			//if it finds a full stop and the secret message is not over
-			if(b == '.' && fpeek(i) == ' ' && s != EOF){
+			if(s != EOF && b == '.' && fpeek(i) == ' '){
 				fputc(b,o);
 				fgetc(i);
 				//if the current secret char's 8th bit is 1
@@ -423,31 +359,22 @@ Int2 crude_hide(Image img, Int2 n,
 	FILE *f;
 	Int2 i;
 	bool done=false;
+	int b;
 	f=fopen(message_filename,"rb");
 	if(f == NULL)
 		return n;
-	int b=fgetc(f);
 	for(i.y = 0 ; i.y < n.y; i.y++)
 		for(i.x = 0 ; i.x < n.x; i.x++){
-			if(b == EOF)
-				b=img[i.x][i.y].green;
-			result[i.x][i.y].green=b;
-			result[i.x][i.y].red=img[i.x][i.y].red;
-			result[i.x][i.y].blue=img[i.x][i.y].blue;
-			b=fgetc(f);
+			b = fgetc(f);
 			if(!done && b == EOF){
-				if(i.x + 1 == n.x){
-					i.y++;
-					result[0][i.y].green=0x0;
-					result[0][i.y].blue=img[0][i.y].blue;
-					result[0][i.y].red=img[0][i.y].red;
-				}else{
-					i.x++;
-					result[i.x][i.y].green=0x0;
-					result[i.x][i.y].blue=img[0][i.y].blue;
-					result[i.x][i.y].red=img[0][i.y].red;
-				}
+				result[i.x][i.y].green=0x0;
+				result[i.x][i.y].blue=img[0][i.y].blue;
+				result[i.x][i.y].red=img[0][i.y].red;
 				done=true;
+			}else{
+				result[i.x][i.y].green = img[i.x][i.y].green;
+				result[i.x][i.y].red=img[i.x][i.y].red;
+				result[i.x][i.y].blue=img[i.x][i.y].blue;
 			}
 	}
 	fclose(f);
@@ -455,6 +382,8 @@ Int2 crude_hide(Image img, Int2 n,
 		error("Didn't fit\n", message_filename);
 	return n;
 }
+
+
 
 void crude_reveal(Image img, Int2 n, String decoded_filename)
 {
@@ -466,8 +395,10 @@ void crude_reveal(Image img, Int2 n, String decoded_filename)
 		for(i.y = 0 ; i.y < n.y && !done; i.y++)
 			for(i.x = 0 ; i.x < n.x && !done; i.x++){
 				b=img[i.x][i.y].green;
+				//if the green pixels value is not 0, decode it
 				if(b != 0x0)
 					fputc(b,f);
+				//if its 0, means the message is over
 				else
 					done=true;
 			}
@@ -481,14 +412,13 @@ Int2 image_hide(Image img, Int2 n,
 {
 	FILE *f;
 	Int2 i;
-	char b;
-	int count;
+	int  b, count = 0;
 	bool finalByte=false;
 	f=fopen(message_filename, "rb");
 	if( f != NULL){
 		b=fgetc(f);
-		for(i.x = 0; i.x < n.x; i.x++)
-			for(i.y = 0; i.y < n.y; i.y++){
+		for(i.y = 0; i.y < n.y; i.y++)
+			for(i.x = 0; i.x < n.x; i.x++){
 				//If f still has chars to read
 				if( b != EOF){
 					//loop for changing the pixel's color' bit
@@ -522,7 +452,7 @@ Int2 image_hide(Image img, Int2 n,
 									completes the color assignment cycle
 									by keeping the remainder of the pixel's
 									colors*/
-									for(int colour = color; colour < 3; 
+									for(int colour = color + 1; colour < 3; 
 										colour++){
 										switch (colour){
 											case RED:
@@ -540,30 +470,44 @@ Int2 image_hide(Image img, Int2 n,
 											default: break;
 										}
 									}
+									break;
 								}
 							}
 						}
 					}	
 				//if we're done encrypting, just keep the pixel's colors
 				}else{
-					for(int color = 0; color < 3; color++){
-						switch (color){
-							case RED:
-								result[i.x][i.y].red = 
-									img[i.x][i.y].red;
+					/*this is for the case where we receive an empty file
+					in that case, we must just need to hide a 0.
+					Only finalbyte is check because if we reach this part
+					we know that b is EOF */
+					if(!finalByte){
+						b = 0x0;
+						finalByte = true;
+						for(int color = 0; color < 3; color++){
+							switch (color){
+								case RED:
+									result[i.x][i.y].red = 
+									(img[i.x][i.y].red & 0xFE) + msb(b);
 									break;
-							case GREEN:
-								result[i.x][i.y].green = 
-									img[i.x][i.y].green;
+								case GREEN:
+									result[i.x][i.y].green = 
+									(img[i.x][i.y].green & 0xFE) + msb(b);
 									break;
-							case BLUE:
-								result[i.x][i.y].blue = 
-									img[i.x][i.y].blue;
+								case BLUE:
+									result[i.x][i.y].blue = 
+									(img[i.x][i.y].blue & 0xFE) + msb(b);
 									break;
-							default: break;
+								default: break;
+							}
+							//No need to shift b because its just 8 0-bits
+							count++;
 						}
+					}else{
+						result[i.x][i.y].red = img[i.x][i.y].red;
+						result[i.x][i.y].green = img[i.x][i.y].green;
+						result[i.x][i.y].blue = img[i.x][i.y].blue;
 					}
-
 				}
 			}
 		if( b != EOF)
@@ -582,8 +526,8 @@ void image_reveal(Image img, Int2 n, String decoded_filename)
 	bool done = false;
 	f=fopen(decoded_filename, "wb");
 	if(f != NULL){
-		for(i.x = 0; i.x < n.x && !done; i.x++)
-			for(i.y = 0; i.y < n.y && !done; i.y++)
+		for(i.y = 0; i.y < n.y && !done; i.y++)
+			for(i.x = 0; i.x < n.x && !done; i.x++)
 				//loop for verifying each pixel 3 times: 1 for each color
 				for(int color = 0; color < 3; color++){
 					switch (color){/*for each color it shift b to the left
